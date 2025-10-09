@@ -51,6 +51,32 @@ def home():
         button_label=button_label
     )
 
+# Add the missing results route
+@app.route('/results', methods=['POST'])
+def results():
+    # Get ingredients from form submission
+    ingredients_input = flask.request.form.get('ingredients', '')
+    ingredients_list = [item.strip() for item in ingredients_input.split(',')]
+    
+    # Get recipes from API
+    recipes = get_recipes_by_ingredients(ingredients_list)
+    
+    # Simple results display - you might want to create a proper template for this
+    if recipes:
+        results_html = "<h1>Recipe Results</h1>"
+        for recipe in recipes:
+            title = recipe["title"]
+            used = [i["name"] for i in recipe["usedIngredients"]]
+            missed = [i["name"] for i in recipe["missedIngredients"]]
+            results_html += f"<h2>{title}</h2>"
+            results_html += f"<p>Used: {', '.join(used)}</p>"
+            if missed:
+                results_html += f"<p>Missing: {', '.join(missed)}</p>"
+            results_html += "<hr>"
+        return results_html
+    else:
+        return "<h1>No recipes found. Try different ingredients.</h1><a href='/'>Go back</a>"
+
 if __name__ == '__main__':
     app.run(debug=True) # debug=True enables debug mode for development
 
