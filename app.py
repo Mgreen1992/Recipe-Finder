@@ -1,7 +1,8 @@
 #  file: recipiefinder.py
 #  authors: Raphael, Shamsi, Michelle
-#  how to run: (py -> python.exe and <filename>)
+#  how to run Command Line Program: (py -> python.exe and <filename>)
 #  type the following in the commmand line: 'py recipefinder.py' 
+#  how to run Flask App: flask run 
 
 import requests
 # use 'pip install flask'in your command line
@@ -49,6 +50,9 @@ def home():
         instructions=instructions,
         button_label=button_label
     )
+
+if __name__ == '__main__':
+    app.run(debug=True) # debug=True enables debug mode for development
 
 # Command line version
 # Step 4: User input
