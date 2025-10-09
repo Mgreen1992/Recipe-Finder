@@ -61,21 +61,169 @@ def results():
     # Get recipes from API
     recipes = get_recipes_by_ingredients(ingredients_list)
     
-    # Simple results display - you might want to create a proper template for this
+    # Build beautiful HTML response with Bootstrap
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Recipe Results</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+        <style>
+            body {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+            }}
+            .recipe-card {{
+                background: white;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                margin-bottom: 25px;
+                transition: transform 0.3s ease;
+                border: none;
+            }}
+            .recipe-card:hover {{
+                transform: translateY(-5px);
+            }}
+            .header-section {{
+                background: white;
+                border-radius: 15px;
+                padding: 30px;
+                margin-bottom: 30px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            }}
+            .ingredient-badge {{
+                background: linear-gradient(45deg, #28a745, #20c997);
+                color: white;
+                border-radius: 20px;
+                padding: 8px 15px;
+                margin: 5px;
+                display: inline-block;
+            }}
+            .missing-badge {{
+                background: linear-gradient(45deg, #dc3545, #e83e8c);
+                color: white;
+                border-radius: 20px;
+                padding: 8px 15px;
+                margin: 5px;
+                display: inline-block;
+            }}
+            .btn-custom {{
+                background: linear-gradient(45deg, #667eea, #764ba2);
+                border: none;
+                border-radius: 25px;
+                padding: 12px 30px;
+                font-weight: 600;
+                color: white;
+                transition: all 0.3s ease;
+            }}
+            .btn-custom:hover {{
+                transform: scale(1.05);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                color: white;
+            }}
+            .recipe-title {{
+                color: #2c3e50;
+                font-weight: 700;
+                margin-bottom: 15px;
+            }}
+            .section-title {{
+                color: #34495e;
+                font-weight: 600;
+                margin: 20px 0 10px 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header-section text-center">
+                <h1 class="display-4 mb-3" style="color: #2c3e50;">
+                    <i class="fas fa-utensils me-3"></i>Recipe Results
+                </h1>
+                <p class="lead text-muted">Found {len(recipes)} recipes for: <strong>{ingredients_input}</strong></p>
+                <a href="/" class="btn btn-custom btn-lg mt-3">
+                    <i class="fas fa-search me-2"></i>Search Again
+                </a>
+            </div>
+    """
+    
     if recipes:
-        results_html = "<h1>Recipe Results</h1>"
         for recipe in recipes:
             title = recipe["title"]
             used = [i["name"] for i in recipe["usedIngredients"]]
             missed = [i["name"] for i in recipe["missedIngredients"]]
-            results_html += f"<h2>{title}</h2>"
-            results_html += f"<p>Used: {', '.join(used)}</p>"
+            recipe_id = recipe["id"]
+            
+            html += f"""
+            <div class="recipe-card">
+                <div class="card-body p-4">
+                    <h3 class="recipe-title">{title}</h3>
+                    
+                    <div class="mb-3">
+                        <h6 class="section-title">
+                            <i class="fas fa-check-circle text-success me-2"></i>Used Ingredients
+                        </h6>
+                        <div class="d-flex flex-wrap">
+            """
+            
+            for ingredient in used:
+                html += f'<span class="ingredient-badge"><i class="fas fa-check me-1"></i>{ingredient}</span>'
+            
+            html += """
+                        </div>
+                    </div>
+            """
+            
             if missed:
-                results_html += f"<p>Missing: {', '.join(missed)}</p>"
-            results_html += "<hr>"
-        return results_html
+                html += f"""
+                    <div class="mb-3">
+                        <h6 class="section-title">
+                            <i class="fas fa-times-circle text-danger me-2"></i>Missing Ingredients
+                        </h6>
+                        <div class="d-flex flex-wrap">
+                """
+                
+                for ingredient in missed:
+                    html += f'<span class="missing-badge"><i class="fas fa-times me-1"></i>{ingredient}</span>'
+                
+                html += """
+                        </div>
+                    </div>
+                """
+            
+            html += f"""
+                    <div class="text-end mt-4">
+                        <a href="https://spoonacular.com/recipes/{title.replace(' ', '-')}-{recipe_id}" 
+                           target="_blank" 
+                           class="btn btn-custom">
+                            <i class="fas fa-external-link-alt me-2"></i>View Full Recipe
+                        </a>
+                    </div>
+                </div>
+            </div>
+            """
     else:
-        return "<h1>No recipes found. Try different ingredients.</h1><a href='/'>Go back</a>"
+        html += """
+            <div class="recipe-card">
+                <div class="card-body p-5 text-center">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h3 class="text-muted">No Recipes Found</h3>
+                    <p class="text-muted">Try different ingredients or check your spelling.</p>
+                </div>
+            </div>
+        """
+    
+    html += """
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+    </html>
+    """
+    
+    return html
 
 if __name__ == '__main__':
     app.run(debug=True) # debug=True enables debug mode for development
