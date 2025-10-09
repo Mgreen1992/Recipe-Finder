@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <h2>{{ prompt }}</h2>
+    <p>{{ instructions }}</p>
+
+    <form action="/results" method="post">
+        <input type="text" name="ingredients" placeholder="e.g. eggs, milk, flour" required>
+        <button type="submit">{{ button_label }}</button>
+    </form>
+</body>
+</html>
