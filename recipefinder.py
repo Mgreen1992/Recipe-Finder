@@ -1,4 +1,11 @@
+#  file: recipiefinder.py
+#  authors: Raphael, Shamsi, Michelle
+#  how to run: (py -> python.exe and <filename>)
+#  type the following in the commmand line: 'py recipefinder.py' 
+
 import requests
+# use 'pip install flask'in your command line
+import flask
 
 
 API_KEY = "869383fda5b5465087a630f231271e3e"  # 🔑 Replace this with your actual Spoonacular API key
