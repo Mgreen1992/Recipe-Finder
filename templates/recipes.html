@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}All Recipes - Recipe Finder{% endblock %}
+
+{% block content %}
+<h1 class="page-header text-center">🍽️ All Recipes</h1>
+
+{% if error %}
+<div class="alert alert-danger text-center">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if not recipes %}
+<div class="text-center mt-5 py-5">
+    <h3>No recipes found yet</h3>
+    <p class="text-muted">Be the first to share your culinary masterpiece!</p>
+    <a href="/upload" class="btn btn-success btn-lg mt-3">Upload First Recipe</a>
+</div>
+{% else %}
+<div class="row">
+    {% for recipe in recipes %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <span class="badge float-end 
+                    {% if recipe.difficulty == 'Easy' %}bg-success
+                    {% elif recipe.difficulty == 'Medium' %}bg-warning
+                    {% else %}bg-danger{% endif %}">
+                    {{ recipe.difficulty }}
+                </span>
+                
+                <h5 class="card-title">{{ recipe.name }}</h5>
+                
+                {% if recipe.cooking_time %}
+                <p class="card-text">
+                    <small class="text-muted">⏱️ {{ recipe.cooking_time }} minutes</small>
+                </p>
+                {% endif %}
+                
+                <h6>Ingredients:</h6>
+                <div class="ingredient-list mb-3" style="max-height: 120px; overflow-y: auto;">
+                    <ul class="list-unstyled">
+                        {% for ingredient in recipe.ingredients %}
+                            <li>• {{ ingredient }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                {% if recipe.instructions %}
+                <p class="card-text">
+                    <strong>Instructions:</strong><br>
+                    {{ recipe.instructions[:100] }}{% if recipe.instructions|length > 100 %}...{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-success btn-sm">View Details</a>
+                <small class="text-muted float-end">
+                    {% if recipe.created_at %}
+                        {{ recipe.created_at|string|truncate(10, True, '') }}
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

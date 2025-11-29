@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Recipe - Recipe Finder{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1 class="page-header">Upload New Recipe</h1>
+        
+        {% if error %}
+        <div class="alert alert-danger">
+            <strong>{{ error }}</strong>
+            {% if errors %}
+            <ul class="mb-0 mt-2">
+                {% for error_msg in errors %}
+                <li>{{ error_msg }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        {% if success %}
+        <div class="alert alert-success">
+            <strong>Success!</strong> {{ message }}
+        </div>
+        {% endif %}
+
+        <form method="POST" class="needs-validation" novalidate>
+            <!-- Recipe Name -->
+            <div class="mb-3">
+                <label for="recipe_name" class="form-label">Recipe Name *</label>
+                <input type="text" class="form-control {% if errors and not recipe_name %}is-invalid{% endif %}" 
+                       id="recipe_name" name="recipe_name" 
+                       value="{{ recipe_name if recipe_name }}" 
+                       maxlength="100"
+                       required>
+                <div class="form-text">Enter a descriptive name for your recipe (2-100 characters)</div>
+                <div class="invalid-feedback">
+                    Please provide a valid recipe name.
+                </div>
+            </div>
+
+            <!-- Ingredients -->
+            <div class="mb-3">
+                <label for="ingredients" class="form-label">Ingredients *</label>
+                <textarea class="form-control {% if errors and not ingredients %}is-invalid{% endif %}" 
+                          id="ingredients" name="ingredients" 
+                          rows="4" 
+                          placeholder="flour, sugar, eggs, milk..."
+                          maxlength="2000"
+                          required>{{ ingredients if ingredients }}</textarea>
+                <div class="form-text">
+                    Separate ingredients with commas. Each ingredient should be 1-100 characters.
+                </div>
+                <div class="invalid-feedback">
+                    Please provide at least one ingredient.
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="mb-3">
+                <label for="instructions" class="form-label">Instructions</label>
+                <textarea class="form-control" 
+                          id="instructions" name="instructions" 
+                          rows="6" 
+                          placeholder="Step 1: Mix dry ingredients...
+Step 2: Add wet ingredients...
+Step 3: Bake at 350°F for 30 minutes..."
+                          maxlength="2000">{{ instructions if instructions }}</textarea>
+                <div class="form-text">
+                    Provide step-by-step instructions (optional, 10-2000 characters)
+                </div>
+            </div>
+
+            <!-- Cooking Time & Difficulty -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="cooking_time" class="form-label">Cooking Time (minutes)</label>
+                    <input type="number" class="form-control" 
+                           id="cooking_time" name="cooking_time" 
+                           value="{{ cooking_time if cooking_time }}" 
+                           min="1" max="1440"
+                           placeholder="30">
+                    <div class="form-text">Total preparation + cooking time</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="difficulty" class="form-label">Difficulty *</label>
+                    <select class="form-select" id="difficulty" name="difficulty" required>
+                        <option value="Easy" {% if difficulty == 'Easy' %}selected{% endif %}>Easy</option>
+                        <option value="Medium" {% if difficulty == 'Medium' or not difficulty %}selected{% endif %}>Medium</option>
+                        <option value="Hard" {% if difficulty == 'Hard' %}selected{% endif %}>Hard</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-success btn-lg">
+                    Upload Recipe 🚀
+                </button>
+                <a href="/recipes" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Real-time validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const recipeName = document.getElementById('recipe_name');
+    const ingredients = document.getElementById('ingredients');
+    
+    // Real-time recipe name validation
+    recipeName.addEventListener('input', function() {
+        if (this.value.length < 2) {
+            this.classList.add('is-invalid');
+        } else {
+            this.classList.remove('is-invalid');
+        }
+    });
+    
+    // Real-time ingredients validation
+    ingredients.addEventListener('input', function() {
+        const ingredientList = this.value.split(',').filter(ing => ing.trim());
+        if (ingredientList.length === 0) {
+            this.classList.add('is-invalid');
+        } else {
+            this.classList.remove('is-invalid');
+        }
+    });
+    
+    // Form submission validation
+    form.addEventListener('submit', function(event) {
+        let isValid = true;
+        
+        // Validate recipe name
+        if (recipeName.value.trim().length < 2) {
+            recipeName.classList.add('is-invalid');
+            isValid = false;
+        }
+        
+        // Validate ingredients
+        const ingredientList = ingredients.value.split(',').filter(ing => ing.trim());
+        if (ingredientList.length === 0) {
+            ingredients.classList.add('is-invalid');
+            isValid = false;
+        }
+        
+        if (!isValid) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        form.classList.add('was-validated');
+    });
+});
+</script>
+{% endblock %}
