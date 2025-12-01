@@ -11,14 +11,20 @@ import time
 import datetime
 from datetime import datetime
 from flask import session
+import os
+from dotenv import load_dotenv
 
 # create flask app
 app = flask.Flask(__name__)
 app.secret_key = 'recipe_finder_secret_key_2024'  # Needed for session
 
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Firebase configuration
 FIREBASE_CONFIG = {
-    "apiKey": "AIzaSyA-xhNilKL5XGhczzT69-TBG5JWFwPE0CI",
+    "apiKey": os.getenv("FIREBASE_API_KEY"),
     "authDomain": "recipe-finder-199c1.firebaseapp.com",
     "projectId": "recipe-finder-199c1",
     "storageBucket": "recipe-finder-199c1.firebasestorage.app",
@@ -37,10 +43,10 @@ ADMIN_EMAIL = "thebestadmin@gmail.com"
 MODERATOR_EMAILS = ["moderator1@gmail.com", "moderator2@gmail.com"]
 
 # Spoonacular API
-API_KEY = "869383fda5b5465087a630f231271e3e"
+API_KEY = os.getenv("SPOONACULAR_API_KEY")
 BASE_URL = "https://api.spoonacular.com/recipes/findByIngredients"
 
-GOOGLE_MAPS_API_KEY = "AIzaSyAwCrYEEzwURtX4_h_jf3qNwEPG1mbZkw4"
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLEMAPS_API_KEY")
 
 # Update the get_recipes_by_ingredients function in app.py
 def get_recipes_by_ingredients(ingredients, number=10):
