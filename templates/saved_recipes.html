@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Recipes - Recipe Finder{% endblock %}
+
+{% block content %}
+<h1 class="page-header text-center">
+    <i class="fas fa-save me-2"></i>My Saved Recipes
+</h1>
+
+{% if error %}
+<div class="alert alert-danger text-center">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if not recipes %}
+<div class="text-center mt-5 py-5">
+    <i class="fas fa-save fa-3x text-muted mb-3"></i>
+    <h3>No saved recipes yet</h3>
+    <p class="text-muted">Save recipes from your searches or upload your own!</p>
+    <div class="mt-3">
+        <a href="/" class="btn btn-success me-2">Search Worldwide Recipes</a>
+        {% if user and user.role in ['chef', 'admin'] %}
+        <a href="/upload" class="btn btn-outline-success">Upload Recipe</a>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="row">
+    {% for recipe in recipes %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    {% if recipe.source == 'spoonacular' %}
+                    <span class="badge bg-info">
+                        <i class="fas fa-globe me-1"></i>Worldwide
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-users me-1"></i>Community
+                    </span>
+                    {% endif %}
+                    
+                    {% if recipe.difficulty %}
+                    <span class="badge 
+                        {% if recipe.difficulty == 'Easy' %}bg-success
+                        {% elif recipe.difficulty == 'Medium' %}bg-warning
+                        {% else %}bg-danger{% endif %}">
+                        {{ recipe.difficulty }}
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <h5 class="card-title">{{ recipe.name }}</h5>
+                
+                {% if recipe.cooking_time %}
+                <p class="card-text">
+                    <small class="text-muted">⏱️ {{ recipe.cooking_time }} minutes</small>
+                </p>
+                {% endif %}
+                
+                {% if recipe.user_email and recipe.source != 'spoonacular' %}
+                <p class="card-text">
+                    <small class="text-muted">By: {{ recipe.user_email }}</small>
+                </p>
+                {% endif %}
+                
+                <h6>Ingredients:</h6>
+                <div class="ingredient-list mb-3" style="max-height: 120px; overflow-y: auto;">
+                    <ul class="list-unstyled">
+                        {% for ingredient in recipe.ingredients %}
+                            <li>• {{ ingredient }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                {% if recipe.instructions and recipe.source != 'spoonacular' %}
+                <p class="card-text">
+                    <strong>Instructions:</strong><br>
+                    {{ recipe.instructions[:100] }}{% if recipe.instructions|length > 100 %}...{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            <!-- In the recipe loop in saved_recipes.html, add these buttons -->
+            <div class="card-footer">
+                <div class="btn-group btn-group-sm">
+                    {% if recipe.source == 'uploaded' %}
+                        <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-primary">View Details</a>
+                    {% else %}
+                        <a href="/saved_recipe/{{ recipe.id }}" class="btn btn-outline-primary">View Details</a>
+                    {% endif %}
+                    
+                    {% if recipe.source == 'uploaded' %}
+                        <a href="/shopping_list/{{ recipe.id }}" class="btn btn-outline-success">Shopping List</a>
+                    {% else %}
+                        <a href="/shopping_list_spoonacular/{{ recipe.spoonacular_id or recipe.id }}" class="btn btn-outline-success">Shopping List</a>
+                    {% endif %}
+                    
+                    <button class="btn btn-outline-danger" onclick="deleteSavedRecipe('{{ recipe.id }}', '{{ recipe.source }}')">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+<script>
+function deleteSavedRecipe(recipeId, recipeSource) {
+    if (confirm('Are you sure you want to delete this recipe? This action cannot be undone.')) {
+        fetch('/delete_saved_recipe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                recipe_id: recipeId,
+                recipe_source: recipeSource
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Recipe deleted successfully!');
+                location.reload(); // Refresh the page
+            } else {
+                alert('Error deleting recipe: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to delete recipe');
+        });
+    }
+}
+</script>
+{% endblock %}

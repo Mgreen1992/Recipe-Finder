@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Recipe Finder{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h1 class="page-header text-center">User Profile</h1>
+        
+        <div class="card auth-card">
+            <div class="auth-header">
+                <h2 class="mb-0">👤 User Information</h2>
+            </div>
+            <div class="card-body p-4">
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Email Address</label>
+                    <p class="form-control-plaintext">{{ user.email }}</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Account Role</label>
+                    <p class="form-control-plaintext">
+                        <span class="badge 
+                            {% if user.role == 'admin' %}bg-danger
+                            {% elif user.role == 'chef' %}bg-success
+                            {% else %}bg-primary{% endif %} fs-6">
+                            {{ user.role|title }}
+                        </span>
+                    </p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Account Features</label>
+                    <ul class="list-group">
+                        {% if user.role in ['chef', 'admin'] %}
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>Upload Recipes
+                        </li>
+                        {% endif %}
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>Rate Recipes
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>Favorite Recipes
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>Bookmark Recipes
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>Use Calendar
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>Create Shopping Lists
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <a href="/recipes" class="btn btn-success">
+                        <i class="fas fa-utensils me-2"></i>Browse Recipes
+                    </a>
+                    {% if user.role in ['chef', 'admin'] %}
+                    <a href="/upload" class="btn btn-outline-success">
+                        <i class="fas fa-upload me-2"></i>Upload New Recipe
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
