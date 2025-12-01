@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}All Recipes - Recipe Finder{% endblock %}
+{% block title %}Uploaded Recipes - Recipe Finder{% endblock %}
 
 {% block content %}
-<h1 class="page-header text-center">🍽️ All Recipes</h1>
+<h1 class="page-header text-center">🍽️ Uploaded Recipes</h1>
 
 {% if error %}
 <div class="alert alert-danger text-center">
@@ -11,30 +11,114 @@
 </div>
 {% endif %}
 
+<!-- Add to recipes.html before the filter section -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-search me-2"></i>Search Recipes
+                </h5>
+                <form method="GET" action="/recipes" class="row g-3">
+                    <div class="col-md-8">
+                        <input type="text" 
+                               class="form-control" 
+                               name="search" 
+                               placeholder="Search by recipe name, ingredients, or instructions..."
+                               value="{{ search_query or '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>Search
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text">Filter by Chef</span>
+            <input type="text" class="form-control" id="chefFilter" placeholder="Enter chef email..." 
+                   value="{{ user_filter }}">
+            <button class="btn btn-outline-success" onclick="applyChefFilter()">Apply</button>
+            {% if user_filter %}
+            <a href="/recipes" class="btn btn-outline-secondary">Clear</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text">Sort by</span>
+            <select class="form-select" id="sortSelect" onchange="sortRecipes()">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="rating">Highest Rated</option>
+                <option value="name">Name (A-Z)</option>
+                <option value="difficulty">Difficulty</option>
+            </select>
+        </div>
+    </div>
+</div>
+
 {% if not recipes %}
 <div class="text-center mt-5 py-5">
     <h3>No recipes found yet</h3>
     <p class="text-muted">Be the first to share your culinary masterpiece!</p>
+    {% if user and user.role in ['chef', 'admin'] %}
     <a href="/upload" class="btn btn-success btn-lg mt-3">Upload First Recipe</a>
+    {% endif %}
 </div>
 {% else %}
-<div class="row">
+<div class="row" id="recipes-container">
     {% for recipe in recipes %}
-    <div class="col-md-6 col-lg-4 mb-4">
+    <div class="col-md-6 col-lg-4 mb-4 recipe-card" 
+         data-rating="{{ recipe.avg_rating or 0 }}" 
+         data-name="{{ recipe.name|lower }}"
+         data-difficulty="{{ recipe.difficulty }}"
+         data-created="{{ recipe.created_at }}">
         <div class="card h-100 shadow-sm">
             <div class="card-body">
-                <span class="badge float-end 
-                    {% if recipe.difficulty == 'Easy' %}bg-success
-                    {% elif recipe.difficulty == 'Medium' %}bg-warning
-                    {% else %}bg-danger{% endif %}">
-                    {{ recipe.difficulty }}
-                </span>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge 
+                        {% if recipe.difficulty == 'Easy' %}bg-success
+                        {% elif recipe.difficulty == 'Medium' %}bg-warning
+                        {% else %}bg-danger{% endif %}">
+                        {{ recipe.difficulty }}
+                    </span>
+                    {% if recipe.avg_rating %}
+                    <div class="star-rating">
+                        <span class="badge bg-primary">
+                            <i class="fas fa-star me-1"></i>{{ recipe.avg_rating }}
+                        </span>
+                    </div>
+                    {% endif %}
+                    <!-- In recipes.html, add this badge near the other badges -->
+                    {% if recipe.source == 'spoonacular' %}
+                    <span class="badge bg-info ms-2">
+                        <i class="fas fa-globe me-1"></i>Web
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary ms-2">
+                        <i class="fas fa-users me-1"></i>Community
+                    </span>
+                    {% endif %}
+                </div>
                 
                 <h5 class="card-title">{{ recipe.name }}</h5>
                 
                 {% if recipe.cooking_time %}
                 <p class="card-text">
                     <small class="text-muted">⏱️ {{ recipe.cooking_time }} minutes</small>
+                </p>
+                {% endif %}
+                
+                {% if recipe.user_email %}
+                <p class="card-text">
+                    <small class="text-muted">By: {{ recipe.user_email }}</small>
                 </p>
                 {% endif %}
                 
@@ -56,15 +140,132 @@
             </div>
             <div class="card-footer bg-transparent">
                 <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-success btn-sm">View Details</a>
-                <small class="text-muted float-end">
-                    {% if recipe.created_at %}
-                        {{ recipe.created_at|string|truncate(10, True, '') }}
-                    {% endif %}
-                </small>
+                <a href="/shopping_list/{{ recipe.id }}" class="btn btn-outline-primary btn-sm" title="Shopping List">
+                    <i class="fas fa-shopping-cart"></i>
+                </a>
+                {% if user %}
+                <button class="btn btn-outline-warning btn-sm favorite-btn {% if recipe.user_favorited %}favorited{% endif %}" 
+                        data-recipe-id="{{ recipe.id }}" title="Favorite">
+                    <i class="fas fa-heart"></i>
+                </button>
+                <button class="btn btn-outline-info btn-sm bookmark-btn {% if recipe.user_bookmarked %}bookmarked{% endif %}" 
+                        data-recipe-id="{{ recipe.id }}" title="Bookmark">
+                    <i class="fas fa-bookmark"></i>
+                </button>
+                {% endif %}
             </div>
         </div>
     </div>
     {% endfor %}
 </div>
 {% endif %}
+
+<script>
+function applyChefFilter() {
+    const chefEmail = document.getElementById('chefFilter').value;
+    if (chefEmail) {
+        window.location.href = `/recipes?user=${encodeURIComponent(chefEmail)}`;
+    }
+}
+
+function sortRecipes() {
+    const sortBy = document.getElementById('sortSelect').value;
+    const container = document.getElementById('recipes-container');
+    const recipes = Array.from(container.getElementsByClassName('recipe-card'));
+    
+    recipes.sort((a, b) => {
+        switch(sortBy) {
+            case 'newest':
+                return parseFloat(b.getAttribute('data-created')) - parseFloat(a.getAttribute('data-created'));
+            case 'oldest':
+                return parseFloat(a.getAttribute('data-created')) - parseFloat(b.getAttribute('data-created'));
+            case 'rating':
+                return parseFloat(b.getAttribute('data-rating')) - parseFloat(a.getAttribute('data-rating'));
+            case 'name':
+                return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'));
+            case 'difficulty':
+                const difficultyOrder = {'Easy': 1, 'Medium': 2, 'Hard': 3};
+                return difficultyOrder[a.getAttribute('data-difficulty')] - difficultyOrder[b.getAttribute('data-difficulty')];
+            default:
+                return 0;
+        }
+    });
+    
+    // Reappend sorted recipes
+    recipes.forEach(recipe => container.appendChild(recipe));
+}
+
+// Favorite and Bookmark functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Favorite buttons
+    document.querySelectorAll('.favorite-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const recipeId = this.getAttribute('data-recipe-id');
+            if (!this.classList.contains('favorited')) {
+                favoriteRecipe(recipeId, this);
+            }
+        });
+    });
+    
+    // Bookmark buttons
+    document.querySelectorAll('.bookmark-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const recipeId = this.getAttribute('data-recipe-id');
+            toggleBookmark(recipeId, this);
+        });
+    });
+    
+    function favoriteRecipe(recipeId, button) {
+        fetch(`/favorite_recipe/${recipeId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                button.classList.add('favorited');
+                button.innerHTML = '<i class="fas fa-heart"></i>';
+                alert('Recipe added to favorites!');
+            } else {
+                alert(data.error || 'Failed to favorite recipe');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to favorite recipe');
+        });
+    }
+    
+    function toggleBookmark(recipeId, button) {
+        fetch(`/bookmark_recipe/${recipeId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.bookmarked) {
+                    button.classList.add('bookmarked');
+                    button.innerHTML = '<i class="fas fa-bookmark"></i>';
+                } else {
+                    button.classList.remove('bookmarked');
+                    button.innerHTML = '<i class="far fa-bookmark"></i>';
+                }
+            } else {
+                alert(data.error || 'Failed to update bookmark');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to update bookmark');
+        });
+    }
+});
+</script>
 {% endblock %}
