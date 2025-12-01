@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe.name }} - Recipe Finder{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="recipe-title">{{ recipe.name }}</h1>
+                <div>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteSavedRecipe('{{ recipe.id }}', '{{ recipe.source }}')">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                    <a href="/saved_recipes" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Recipe Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% if recipe.cooking_time %}
+                        <div class="col-md-4">
+                            <strong><i class="fas fa-clock text-primary me-2"></i>Cooking Time:</strong>
+                            <span class="ms-2">{{ recipe.cooking_time }} minutes</span>
+                        </div>
+                        {% endif %}
+                        {% if recipe.difficulty %}
+                        <div class="col-md-4">
+                            <strong><i class="fas fa-tachometer-alt text-warning me-2"></i>Difficulty:</strong>
+                            <span class="ms-2">{{ recipe.difficulty }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="col-md-4">
+                            <strong><i class="fas fa-database text-info me-2"></i>Source:</strong>
+                            <span class="ms-2">{{ recipe.source|title }}</span>
+                        </div>
+                    </div>
+                    {% if recipe.spoonacular_id %}
+                    <div class="mt-2">
+                        <strong><i class="fas fa-external-link-alt text-success me-2"></i>Original Recipe:</strong>
+                        <a href="https://spoonacular.com/recipes/{{ recipe.name|replace(' ', '-') }}-{{ recipe.spoonacular_id }}" 
+                           target="_blank" class="ms-2">
+                            View on Spoonacular
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-shopping-basket me-2"></i>Ingredients</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for ingredient in recipe.ingredients %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ ingredient }}
+                            <span class="badge bg-primary rounded-pill">1</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            {% if recipe.instructions %}
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-list-ol me-2"></i>Instructions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="instructions-content">
+                        {{ recipe.instructions|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/shopping_list_spoonacular/{{ recipe.spoonacular_id or recipe.id }}" 
+                           class="btn btn-primary">
+                            <i class="fas fa-shopping-cart me-2"></i>Shopping List
+                        </a>
+                        <button class="btn btn-success" onclick="addToCalendar('{{ recipe.id }}', '{{ recipe.name }}', 'spoonacular')">
+                            <i class="fas fa-calendar-plus me-2"></i>Add to Calendar
+                        </button>
+                        {% if recipe.spoonacular_id %}
+                        <a href="https://spoonacular.com/recipes/{{ recipe.name|replace(' ', '-') }}-{{ recipe.spoonacular_id }}" 
+                           target="_blank" class="btn btn-outline-primary">
+                            <i class="fas fa-external-link-alt me-2"></i>View Original
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recipe History</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Saved on:</strong><br>
+                    {{ recipe.saved_at_readable or recipe.created_at_readable }}</p>
+                    
+                    {% if recipe.source == 'spoonacular' %}
+                    <p><strong>Originally from:</strong><br>
+                    Spoonacular API</p>
+                    {% else %}
+                    <p><strong>Created by:</strong><br>
+                    {{ recipe.user_email }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function deleteSavedRecipe(recipeId, recipeSource) {
+    if (confirm('Are you sure you want to delete this recipe? This action cannot be undone.')) {
+        fetch('/delete_saved_recipe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                recipe_id: recipeId,
+                recipe_source: recipeSource
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Recipe deleted successfully!');
+                window.location.href = '/saved_recipes';
+            } else {
+                alert('Error deleting recipe: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to delete recipe');
+        });
+    }
+}
+
+function addToCalendar(recipeId, recipeName, source) {
+    // You can implement calendar functionality here
+    alert('Add to calendar functionality for: ' + recipeName);
+    // This would typically open a modal or redirect to calendar page
+}
+</script>
+{% endblock %}
