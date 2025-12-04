@@ -5,6 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recipe Details - Recipe Finder</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .star-rating {
+            color: #ffc107;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .star-rating .far {
+            color: #e4e5e9;
+        }
+        
+        .action-btn {
+            border: none;
+            background: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.5rem;
+        }
+        
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .favorited {
+            color: #dc3545;
+        }
+        
+        .bookmarked {
+            color: #28a745;
+        }
+        
+        .rating-disabled {
+            cursor: default;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
@@ -12,8 +48,18 @@
             <a class="navbar-brand" href="/">🍳 Recipe Finder</a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="/">Home</a>
+                {% if user and user.role in ['chef', 'admin'] %}
                 <a class="nav-link" href="/upload">Upload Recipe</a>
-                <a class="nav-link" href="/recipes">View Recipes</a>
+                {% endif %}
+                <a class="nav-link" href="/recipes">Uploaded Recipes</a>
+                {% if user %}
+                <a class="nav-link" href="/bookmarks">
+                    <i class="fas fa-bookmark me-1"></i>Bookmarks
+                </a>
+                <a class="nav-link" href="/calendar">
+                    <i class="fas fa-calendar me-1"></i>My Calendar
+                </a>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -21,7 +67,7 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <a href="/recipes" class="btn btn-outline-secondary mb-3">← Back to All Recipes</a>
+                <a href="/recipes" class="btn btn-outline-secondary mb-3">← Back to Uploaded Recipes</a>
                 
                 {% if error %}
                     <div class="alert alert-danger text-center">
@@ -30,7 +76,34 @@
                 {% elif recipe %}
                 <div class="card">
                     <div class="card-header bg-success text-white">
-                        <h2 class="mb-0">{{ recipe.name }}</h2>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h2 class="mb-0">{{ recipe.name }}</h2>
+                            <div>
+                                {% if user %}
+                                <button class="action-btn {% if recipe.user_favorited %}favorited{% endif %}" 
+                                        data-recipe-id="{{ recipe.id }}" 
+                                        onclick="favoriteRecipe('{{ recipe.id }}', this)"
+                                        {% if recipe.user_favorited %}disabled{% endif %}
+                                        title="{% if recipe.user_favorited %}Already Favorited{% else %}Add to Favorites{% endif %}">
+                                    <i class="fas fa-heart"></i>
+                                </button>
+                                <button class="action-btn {% if recipe.user_bookmarked %}bookmarked{% endif %}" 
+                                        data-recipe-id="{{ recipe.id }}" 
+                                        onclick="toggleBookmark('{{ recipe.id }}', this)"
+                                        title="{% if recipe.user_bookmarked %}Remove Bookmark{% else %}Add Bookmark{% endif %}">
+                                    <i class="fas fa-bookmark"></i>
+                                </button>
+                                <a href="/shopping_list/{{ recipe.id }}" class="action-btn text-white" title="Shopping List">
+                                    <i class="fas fa-shopping-cart"></i>
+                                </a>
+                                {% if user %}
+                                <button class="action-btn text-white" onclick="addToCalendar('{{ recipe.id }}', '{{ recipe.name }}')" title="Add to Calendar">
+                                    <i class="fas fa-calendar-plus"></i>
+                                </button>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="row mb-3">
@@ -46,8 +119,46 @@
                                     ⏱️ {{ recipe.cooking_time }} minutes
                                 </span>
                                 {% endif %}
+                                {% if recipe.avg_rating %}
+                                <span class="ms-2 star-rating rating-disabled">
+                                    {% for i in range(5) %}
+                                        {% if i < recipe.avg_rating %}
+                                        <i class="fas fa-star"></i>
+                                        {% else %}
+                                        <i class="far fa-star"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <small class="text-muted">({{ recipe.avg_rating }})</small>
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if recipe.user_email %}
+                            <div class="col-md-6 text-end">
+                                <small class="text-muted">Uploaded by: {{ recipe.user_email }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Rating Section -->
+                        {% if user and not recipe.user_rated %}
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5>Rate this Recipe</h5>
+                                        <div class="star-rating" id="rating-stars">
+                                            {% for i in range(1, 6) %}
+                                            <i class="far fa-star" data-rating="{{ i }}" 
+                                               onmouseover="highlightStars({{ i }})" 
+                                               onmouseout="resetStars()"
+                                               onclick="submitRating('{{ recipe.id }}', {{ i }})"></i>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                        {% endif %}
 
                         <div class="row">
                             <div class="col-md-6">
@@ -68,18 +179,176 @@
                             </div>
                         </div>
 
-                        {% if recipe.created_at %}
+                        {% if recipe.created_at_readable %}
                         <div class="mt-4 text-muted">
-                            <small>Recipe added: {{ recipe.created_at }}</small>
+                            <small>Recipe added: {{ recipe.created_at_readable }}</small>
                         </div>
                         {% endif %}
                     </div>
                 </div>
+                {% else %}
+                    <div class="alert alert-warning text-center">
+                        Recipe not found or unable to load recipe details.
+                    </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentHoverRating = 0;
+        
+        function highlightStars(rating) {
+            currentHoverRating = rating;
+            const stars = document.querySelectorAll('#rating-stars .fa-star');
+            stars.forEach((star, index) => {
+                if (index < rating) {
+                    star.classList.add('fas');
+                    star.classList.remove('far');
+                } else {
+                    star.classList.add('far');
+                    star.classList.remove('fas');
+                }
+            });
+        }
+        
+        function resetStars() {
+            const stars = document.querySelectorAll('#rating-stars .fa-star');
+            stars.forEach((star, index) => {
+                if (index < currentHoverRating) {
+                    star.classList.add('fas');
+                    star.classList.remove('far');
+                } else {
+                    star.classList.add('far');
+                    star.classList.remove('fas');
+                }
+            });
+        }
+        
+        function submitRating(recipeId, rating) {
+            fetch(`/rate_recipe/${recipeId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rating: rating })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Rating submitted successfully!');
+                    location.reload();
+                } else {
+                    alert(data.error || 'Failed to submit rating');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to submit rating');
+            });
+        }
+        
+        function favoriteRecipe(recipeId, button) {
+            if (button.disabled) return;
+            
+            fetch(`/favorite_recipe/${recipeId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    button.classList.add('favorited');
+                    button.disabled = true;
+                    button.title = 'Already Favorited';
+                    showAlert('Recipe added to favorites successfully!', 'success');
+                } else {
+                    showAlert(data.error || 'Failed to favorite recipe', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Failed to favorite recipe', 'danger');
+            });
+        }
+
+        
+        function toggleBookmark(recipeId, button) {
+            fetch(`/bookmark_recipe/${recipeId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.bookmarked) {
+                        button.classList.add('bookmarked');
+                        button.title = 'Remove Bookmark';
+                        showAlert('Recipe bookmarked successfully!', 'success');
+                    } else {
+                        button.classList.remove('bookmarked');
+                        button.title = 'Add Bookmark';
+                        showAlert('Bookmark removed successfully!', 'info');
+                    }
+                } else {
+                    showAlert(data.error || 'Failed to update bookmark', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Failed to update bookmark', 'danger');
+            });
+        }
+
+        function getAlertIcon(type) {
+            const icons = {
+                'success': 'check-circle',
+                'info': 'info-circle',
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle'
+            };
+            return icons[type] || 'info-circle';
+        }
+
+        function showAlert(message, type) {
+            // Remove any existing alerts
+            const existingAlert = document.querySelector('.alert.alert-dismissible');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+            
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+            alert.innerHTML = `
+                <i class="fas fa-${getAlertIcon(type)} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.container').insertBefore(alert, document.querySelector('.card').nextSibling);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+
+
+        
+        function addToCalendar(recipeId, recipeName) {
+            if (confirm(`Add "${recipeName}" to your calendar?`)) {
+                // Redirect to calendar page with recipe pre-selected
+                window.location.href = `/calendar?recipe=${recipeId}`;
+            }
+        }
+    </script>
 </body>
 </html>

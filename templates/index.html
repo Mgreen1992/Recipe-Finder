@@ -7,7 +7,43 @@
     <h1 class="display-4 page-header">Welcome to Recipe Finder! 🍽️</h1>
     <p class="lead">Discover amazing recipes or share your own culinary creations</p>
     
-    <div class="row mt-5">
+    <!-- Spoonacular API Search Form -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        Worldwide Recipies
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Search thousands of recipes from around the world using ingredients you have on hand
+                    </p>
+                    <form action="/results" method="POST" class="needs-validation" novalidate>
+                        <div class="mb-3">
+                            <label for="ingredients" class="form-label">Enter Ingredients (comma separated)</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="ingredients" 
+                                   name="ingredients" 
+                                   placeholder="e.g., chicken, rice, tomatoes, onions"
+                                   required>
+                            <div class="form-text">
+                                Separate ingredients with commas. We'll find recipes that use these ingredients.
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <i class="fas fa-search me-2"></i>Search Worldwide Recipes
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        {% if user and user.role in ['chef', 'admin'] %}
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-body">
@@ -17,15 +53,59 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        {% endif %}
+        <div class="{% if user and user.role in ['chef', 'admin'] %}col-md-6{% else %}col-md-8 offset-md-2{% endif %}">
             <div class="card h-100">
                 <div class="card-body">
-                    <h3>🔍 Find Recipes</h3>
-                    <p>Browse through our collection of delicious recipes</p>
-                    <a href="/recipes" class="btn btn-outline-success">View All Recipes</a>
+                    <h3>🔍 Browse Community Recipes</h3>
+                    <p>Browse through our collection of delicious recipes uploaded by our community</p>
+                    <a href="/recipes" class="btn btn-outline-success">View Uploaded Recipes</a>
                 </div>
             </div>
         </div>
     </div>
+
+    {% if not user %}
+    <div class="row mt-4">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-body">
+                    <h4>Join Our Community!</h4>
+                    <p>Sign up as a Recipe Seeker to rate, favorite, and bookmark recipes, or become a Chef to share your culinary creations!</p>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="/register" class="btn btn-success me-md-2">Register Now</a>
+                        <a href="/login" class="btn btn-outline-success">Login</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
+
+<script>
+// Form validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const ingredientsInput = document.getElementById('ingredients');
+    
+    form.addEventListener('submit', function(event) {
+        if (!ingredientsInput.value.trim()) {
+            event.preventDefault();
+            event.stopPropagation();
+            ingredientsInput.classList.add('is-invalid');
+        } else {
+            ingredientsInput.classList.remove('is-invalid');
+        }
+        
+        form.classList.add('was-validated');
+    });
+    
+    ingredientsInput.addEventListener('input', function() {
+        if (this.value.trim()) {
+            this.classList.remove('is-invalid');
+        }
+    });
+});
+</script>
 {% endblock %}

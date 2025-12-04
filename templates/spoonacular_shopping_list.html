@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping List - Recipe Finder{% endblock %}
+
+{% block extra_css %}
+<style>
+    .store-card {
+        transition: transform 0.2s ease;
+    }
+    .store-card:hover {
+        transform: translateY(-2px);
+    }
+    .location-permission {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+    }
+    .store-map {
+        border-radius: 8px;
+        overflow: hidden;
+        height: 150px;
+    }
+    .loading-spinner {
+        display: none;
+    }
+    .store-info {
+        font-size: 0.9rem;
+    }
+    .distance-badge {
+        background: #28a745;
+        color: white;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1 class="page-header">
+            <i class="fas fa-shopping-cart me-2"></i>
+            {% if recipe %}
+                Shopping List for {{ recipe.name }}
+            {% else %}
+                Shopping List
+            {% endif %}
+        </h1>
+        
+        {% if error %}
+        <div class="alert alert-danger">
+            {{ error }}
+        </div>
+        {% elif not recipe %}
+        <div class="alert alert-warning">
+            Recipe information not available.
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Ingredients Needed</h4>
+            </div>
+            <div class="card-body">
+                <ul class="list-group" id="shopping-list">
+                    {% for ingredient in recipe.ingredients %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <input class="form-check-input me-3" type="checkbox" id="ingredient-{{ loop.index }}">
+                            <label class="form-check-label mb-0" for="ingredient-{{ loop.index }}">
+                                {{ ingredient }}
+                            </label>
+                        </div>
+                        <span class="badge bg-primary rounded-pill">1</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                
+                <div class="mt-3">
+                    <button class="btn btn-outline-success btn-sm" onclick="checkAll()">
+                        <i class="fas fa-check-double me-1"></i>Check All
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="uncheckAll()">
+                        <i class="fas fa-undo me-1"></i>Uncheck All
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm float-end" onclick="printList()">
+                        <i class="fas fa-print me-1"></i>Print List
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Location Permission Section -->
+        <div class="card location-permission mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-map-marker-alt fa-2x mb-3"></i>
+                <h5>Find Nearby Grocery Stores</h5>
+                <p class="mb-3">Allow location access to find stores near you</p>
+                <button class="btn btn-light" onclick="requestLocationPermission()">
+                    <i class="fas fa-location-arrow me-2"></i>Use My Location
+                </button>
+            </div>
+        </div>
+
+        <!-- Stores Section -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-store me-2"></i>Nearby Grocery Stores
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Loading State -->
+                <div id="stores-loading" class="text-center py-4 loading-spinner">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Finding nearby stores...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="stores-error" class="alert alert-warning text-center loading-spinner">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="error-message">Unable to load stores</span>
+                </div>
+
+                <!-- Stores List -->
+                <div id="stores-list">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-store fa-2x mb-2"></i>
+                        <p>Enable location access to see nearby stores</p>
+                    </div>
+                </div>
+
+                <!-- Store Details Modal -->
+                <div class="modal fade" id="storeModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="storeModalLabel">Store Details</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="store-details-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5>
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </h5>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-success" onclick="shareList()">
+                        <i class="fas fa-share-alt me-2"></i>Share List
+                    </button>
+                    <button class="btn btn-outline-info" onclick="emailList()">
+                        <i class="fas fa-envelope me-2"></i>Email List
+                    </button>
+                    <a href="https://spoonacular.com/recipes/{{ recipe.name|replace(' ', '-') }}-{{ recipe.id }}" 
+                       target="_blank" 
+                       class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Recipe
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initMap" async defer></script>
+<script>
+let map;
+let placesService;
+let userLocation = null;
+let stores = [];
+
+// Initialize Google Maps
+function initMap() {
+    console.log('Google Maps API loaded');
+    // We'll create the map when we have a location
+}
+
+// Request location permission
+function requestLocationPermission() {
+    const loadingElement = document.getElementById('stores-loading');
+    const errorElement = document.getElementById('stores-error');
+    const storesList = document.getElementById('stores-list');
+    
+    // Show loading
+    loadingElement.style.display = 'block';
+    errorElement.style.display = 'none';
+    storesList.innerHTML = '';
+    
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                console.log('User location:', userLocation);
+                findNearbyStores();
+            },
+            function(error) {
+                console.error('Error getting location:', error);
+                loadingElement.style.display = 'none';
+                errorElement.style.display = 'block';
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        document.getElementById('error-message').textContent = 'Location access denied. Please enable location permissions.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        document.getElementById('error-message').textContent = 'Location information unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        document.getElementById('error-message').textContent = 'Location request timed out.';
+                        break;
+                    default:
+                        document.getElementById('error-message').textContent = 'An unknown error occurred.';
+                        break;
+                }
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            }
+        );
+    } else {
+        loadingElement.style.display = 'none';
+        errorElement.style.display = 'block';
+        document.getElementById('error-message').textContent = 'Geolocation is not supported by this browser.';
+    }
+}
+
+// Find nearby grocery stores using Places API
+function findNearbyStores() {
+    if (!userLocation) return;
+    
+    // Create a temporary map for Places service
+    map = new google.maps.Map(document.createElement('div'));
+    placesService = new google.maps.places.PlacesService(map);
+    
+    const request = {
+        location: userLocation,
+        radius: 5000, // 5km radius
+        type: 'grocery_or_supermarket',
+        keyword: 'grocery store supermarket'
+    };
+    
+    placesService.nearbySearch(request, function(results, status) {
+        const loadingElement = document.getElementById('stores-loading');
+        const errorElement = document.getElementById('stores-error');
+        const storesList = document.getElementById('stores-list');
+        
+        loadingElement.style.display = 'none';
+        
+        if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+            stores = results.slice(0, 8); // Get top 8 stores
+            
+            // Calculate distances and get detailed info for each store
+            stores.forEach((store, index) => {
+                calculateDistance(store, index);
+            });
+            
+        } else {
+            errorElement.style.display = 'block';
+            document.getElementById('error-message').textContent = 'No grocery stores found nearby.';
+        }
+    });
+}
+
+// Calculate distance to store
+function calculateDistance(store, index) {
+    const distanceService = new google.maps.DistanceMatrixService();
+    
+    distanceService.getDistanceMatrix({
+        origins: [userLocation],
+        destinations: [store.geometry.location],
+        travelMode: 'DRIVING',
+        unitSystem: google.maps.UnitSystem.IMPERIAL
+    }, function(response, status) {
+        if (status === 'OK') {
+            const element = response.rows[0].elements[0];
+            if (element.status === 'OK') {
+                store.distance = element.distance.text;
+                store.duration = element.duration.text;
+                displayStore(store, index);
+            }
+        }
+    });
+}
+
+// Display store in the list
+function displayStore(store, index) {
+    const storesList = document.getElementById('stores-list');
+    
+    const storeCard = document.createElement('div');
+    storeCard.className = 'card store-card mb-3';
+    storeCard.innerHTML = `
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="card-title mb-0">${store.name}</h6>
+                <span class="badge distance-badge">${store.distance}</span>
+            </div>
+            
+            <div class="store-info mb-2">
+                <div class="mb-1">
+                    <i class="fas fa-clock text-muted me-1"></i>
+                    <small class="text-muted">${store.duration} drive</small>
+                </div>
+                ${store.vicinity ? `
+                <div class="mb-1">
+                    <i class="fas fa-map-marker-alt text-muted me-1"></i>
+                    <small class="text-muted">${store.vicinity}</small>
+                </div>
+                ` : ''}
+                ${store.rating ? `
+                <div class="mb-1">
+                    <i class="fas fa-star text-warning me-1"></i>
+                    <small class="text-muted">${store.rating} • ${store.user_ratings_total || 'No'} reviews</small>
+                </div>
+                ` : ''}
+            </div>
+            
+            <div class="store-map mb-2" id="map-${index}"></div>
+            
+            <div class="d-grid gap-1">
+                <button class="btn btn-sm btn-outline-primary" onclick="getDirections('${store.name}', ${store.geometry.location.lat()}, ${store.geometry.location.lng()})">
+                    <i class="fas fa-directions me-1"></i>Get Directions
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="viewStoreDetails(${index})">
+                    <i class="fas fa-list me-1"></i>Store Details
+                </button>
+            </div>
+        </div>
+    `;
+    
+    storesList.appendChild(storeCard);
+    
+    // Create mini map for this store
+    createStoreMap(store, index);
+}
+
+// Create mini map for each store
+function createStoreMap(store, index) {
+    const mapElement = document.getElementById(`map-${index}`);
+    const storeMap = new google.maps.Map(mapElement, {
+        zoom: 15,
+        center: store.geometry.location,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        styles: [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [{ visibility: "off" }]
+            }
+        ]
+    });
+    
+    new google.maps.Marker({
+        position: store.geometry.location,
+        map: storeMap,
+        title: store.name
+    });
+}
+
+// Get directions to store
+function getDirections(storeName, lat, lng) {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=&travelmode=driving`;
+    window.open(url, '_blank');
+}
+
+// View store details
+function viewStoreDetails(storeIndex) {
+    const store = stores[storeIndex];
+    const modalContent = document.getElementById('store-details-content');
+    
+    modalContent.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Store Information</h6>
+                <p><strong>Name:</strong> ${store.name}</p>
+                <p><strong>Distance:</strong> ${store.distance}</p>
+                <p><strong>Drive Time:</strong> ${store.duration}</p>
+                ${store.rating ? `<p><strong>Rating:</strong> ${store.rating}/5 (${store.user_ratings_total || 0} reviews)</p>` : ''}
+                ${store.vicinity ? `<p><strong>Address:</strong> ${store.vicinity}</p>` : ''}
+                
+                <h6 class="mt-4">Shopping List</h6>
+                <div class="store-shopping-list">
+                    ${generateStoreShoppingList()}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div id="store-detail-map" style="height: 300px; border-radius: 8px;"></div>
+            </div>
+        </div>
+    `;
+    
+    // Create detailed map
+    const detailMap = new google.maps.Map(document.getElementById('store-detail-map'), {
+        zoom: 15,
+        center: store.geometry.location,
+        mapTypeControl: true
+    });
+    
+    new google.maps.Marker({
+        position: store.geometry.location,
+        map: detailMap,
+        title: store.name
+    });
+    
+    // Show modal
+    new bootstrap.Modal(document.getElementById('storeModal')).show();
+}
+
+// Generate shopping list for store modal
+function generateStoreShoppingList() {
+    {% if recipe and recipe.ingredients %}
+    const ingredients = {{ recipe.ingredients|tojson }};
+    let html = '<ul class="list-group">';
+    
+    ingredients.forEach((ingredient, index) => {
+        html += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <input class="form-check-input me-2" type="checkbox" id="modal-ingredient-${index}">
+                    <label class="form-check-label" for="modal-ingredient-${index}">${ingredient}</label>
+                </div>
+                <span class="badge bg-primary rounded-pill">1</span>
+            </li>
+        `;
+    });
+    
+    html += '</ul>';
+    return html;
+    {% else %}
+    return '<p class="text-muted">No ingredients available.</p>';
+    {% endif %}
+}
+
+// Auto-request location when page loads (with user confirmation)
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if location was previously allowed
+    if (localStorage.getItem('locationAllowed') === 'true') {
+        requestLocationPermission();
+    }
+    
+    // Initialize shopping list functionality
+    initializeShoppingList();
+});
+
+function initializeShoppingList() {
+    // Checkbox functionality
+    document.querySelectorAll('.form-check-input').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const listItem = this.closest('.list-group-item');
+            if (this.checked) {
+                listItem.classList.add('ingredient-checked');
+            } else {
+                listItem.classList.remove('ingredient-checked');
+            }
+            saveShoppingListState();
+        });
+    });
+    
+    // Load saved state
+    loadShoppingListState();
+}
+
+// Shopping list management functions
+function checkAll() {
+    document.querySelectorAll('.form-check-input').forEach(checkbox => {
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change'));
+    });
+}
+
+function uncheckAll() {
+    document.querySelectorAll('.form-check-input').forEach(checkbox => {
+        checkbox.checked = false;
+        checkbox.dispatchEvent(new Event('change'));
+    });
+}
+
+function printList() {
+    const printContent = document.getElementById('shopping-list').cloneNode(true);
+    const checkboxes = printContent.querySelectorAll('.form-check-input');
+    checkboxes.forEach(cb => cb.remove());
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Shopping List - {{ recipe.name }}</title>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+                <style>
+                    body { padding: 20px; }
+                    .list-group-item { border-bottom: 1px solid #dee2e6; }
+                </style>
+            </head>
+            <body>
+                <h2>Shopping List for {{ recipe.name }}</h2>
+                ${printContent.outerHTML}
+                <p class="mt-3 text-muted">Generated on ${new Date().toLocaleDateString()}</p>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+
+function shareList() {
+    const ingredients = Array.from(document.querySelectorAll('.form-check-label'))
+        .map(label => `• ${label.textContent}`)
+        .join('\n');
+    
+    const shareText = `Shopping List for {{ recipe.name }}:\n\n${ingredients}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Shopping List',
+            text: shareText
+        });
+    } else {
+        navigator.clipboard.writeText(shareText).then(() => {
+            showAlert('Shopping list copied to clipboard!', 'success');
+        });
+    }
+}
+
+function emailList() {
+    const ingredients = Array.from(document.querySelectorAll('.form-check-label'))
+        .map(label => `• ${label.textContent}`)
+        .join('\n');
+    
+    const subject = encodeURIComponent('Shopping List for {{ recipe.name }}');
+    const body = encodeURIComponent(`Here's my shopping list:\n\n${ingredients}`);
+    
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+
+function saveShoppingListState() {
+    const state = {};
+    document.querySelectorAll('.form-check-input').forEach((checkbox, index) => {
+        state[`ingredient-${index}`] = checkbox.checked;
+    });
+    localStorage.setItem('shoppingListState', JSON.stringify(state));
+}
+
+function loadShoppingListState() {
+    const savedState = localStorage.getItem('shoppingListState');
+    if (savedState) {
+        const state = JSON.parse(savedState);
+        document.querySelectorAll('.form-check-input').forEach((checkbox, index) => {
+            if (state[`ingredient-${index}`]) {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+}
+
+function showAlert(message, type) {
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+    alert.style.zIndex = '1060';
+    alert.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alert);
+    
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.remove();
+        }
+    }, 5000);
+}
+</script>
+
+<style>
+.ingredient-checked {
+    background-color: #f8f9fa;
+}
+.form-check-input:checked + label {
+    text-decoration: line-through;
+    color: #6c757d;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}My Calendar - Recipe Finder{% endblock %}
+
+{% block content %}
+<h1 class="page-header text-center">
+    <i class="fas fa-calendar me-2"></i>My Meal Planning Calendar
+</h1>
+
+<div class="card">
+    <div class="card-header bg-success text-white">
+        <h4 class="mb-0">Weekly Meal Plan</h4>
+    </div>
+    <div class="card-body">
+        <div class="row text-center mb-4">
+            {% set days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] %}
+            {% for day in days %}
+            <div class="col">
+                <h5>{{ day|title }}</h5>
+                <div class="calendar-day" data-day="{{ day }}">
+                    <div class="calendar-slots" id="slots-{{ day }}">
+                        {% for event in calendar_events %}
+                            {% if event.day == day %}
+                            <div class="meal-slot">
+                                <strong>{{ event.time }}</strong><br>
+                                <small>{{ event.recipe_name }}</small>
+                                <button class="btn btn-sm btn-outline-danger remove-event" 
+                                        data-event-id="{{ event.id }}" title="Remove">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <button class="btn btn-sm btn-outline-success add-recipe-btn mt-2" data-day="{{ day }}">
+                        <i class="fas fa-plus"></i> Add Recipe
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if not calendar_events %}
+        <div class="text-center py-4">
+            <i class="fas fa-calendar-plus fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Recipes Added Yet</h4>
+            <p class="text-muted">Start planning your meals by adding recipes to your calendar!</p>
+        </div>
+        {% endif %}
+        
+        <div class="text-center">
+            <button class="btn btn-success" id="view-recipes-btn">
+                <i class="fas fa-utensils me-2"></i>Browse Recipes to Add
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Recipe Selection Modal -->
+<div class="modal fade" id="recipeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select a Recipe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="recipe-list">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-success" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading recipes...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Time Selection Modal -->
+<div class="modal fade" id="timeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Time for <span id="selected-recipe-name"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="recipeTime" class="form-label">Meal Time</label>
+                    <select class="form-select" id="recipeTime">
+                        <option value="Breakfast (7:00 AM)">Breakfast (7:00 AM)</option>
+                        <option value="Lunch (12:00 PM)">Lunch (12:00 PM)</option>
+                        <option value="Dinner (6:00 PM)" selected>Dinner (6:00 PM)</option>
+                        <option value="Custom">Custom Time</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="customTime" style="display: none;">
+                    <label for="customTimeInput" class="form-label">Custom Time</label>
+                    <input type="time" class="form-control" id="customTimeInput">
+                </div>
+                <input type="hidden" id="selected-recipe-source" value="uploaded">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirm-time">Add to Calendar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<style>
+.calendar-day {
+    min-height: 200px;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #f8f9fa;
+}
+
+.calendar-slots {
+    min-height: 120px;
+}
+
+.meal-slot {
+    background: #e8f5e8;
+    border: 1px solid #28a745;
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    position: relative;
+}
+
+.meal-slot .remove-event {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+}
+
+.add-recipe-btn {
+    width: 100%;
+}
+
+.recipe-card-modal {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.recipe-card-modal:hover {
+    background: #f8f9fa;
+    transform: translateY(-2px);
+}
+</style>
+
+<script>
+let selectedDay = '';
+let selectedRecipeId = '';
+let selectedRecipeName = '';
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Add recipe button click
+    document.querySelectorAll('.add-recipe-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            selectedDay = this.getAttribute('data-day');
+            loadRecipes();
+            new bootstrap.Modal(document.getElementById('recipeModal')).show();
+        });
+    });
+    
+    // Time selection change
+    document.getElementById('recipeTime').addEventListener('change', function() {
+        document.getElementById('customTime').style.display = 
+            this.value === 'Custom' ? 'block' : 'none';
+    });
+    
+    // Confirm time and add to calendar
+    document.getElementById('confirm-time').addEventListener('click', function() {
+        const timeSelect = document.getElementById('recipeTime');
+        let timeSlot = timeSelect.value;
+        
+        if (timeSlot === 'Custom') {
+            const customTime = document.getElementById('customTimeInput').value;
+            if (!customTime) {
+                alert('Please select a custom time');
+                return;
+            }
+            // Format custom time nicely
+            const [hours, minutes] = customTime.split(':');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const formattedHours = hours % 12 || 12;
+            timeSlot = `Custom (${formattedHours}:${minutes} ${ampm})`;
+        }
+        
+        addToCalendar(selectedRecipeId, selectedDay, timeSlot);
+    });
+    
+    // View recipes button
+    document.getElementById('view-recipes-btn').addEventListener('click', function() {
+        loadRecipes();
+        new bootstrap.Modal(document.getElementById('recipeModal')).show();
+    });
+    
+    // Remove event buttons
+    document.querySelectorAll('.remove-event').forEach(button => {
+        button.addEventListener('click', function() {
+            const eventId = this.getAttribute('data-event-id');
+            removeFromCalendar(eventId);
+        });
+    });
+});
+
+function loadRecipes() {
+    fetch('/recipes.json')
+        .then(response => response.json())
+        .then(recipes => {
+            displayRecipes(recipes);
+        })
+        .catch(error => {
+            console.error('Error loading recipes:', error);
+            document.getElementById('recipe-list').innerHTML = `
+                <div class="alert alert-danger">
+                    Error loading recipes. Please try again.
+                </div>
+            `;
+        });
+}
+
+
+function displayRecipes(recipes) {
+    const recipeList = document.getElementById('recipe-list');
+    
+    if (recipes.length === 0) {
+        recipeList.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-utensils fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Recipes Available</h5>
+                <p class="text-muted">Upload or save some recipes first to add them to your calendar.</p>
+                <div class="mt-3">
+                    <a href="/" class="btn btn-success me-2">Search Recipes</a>
+                    {% if user and user.role in ['chef', 'admin'] %}
+                    <a href="/upload" class="btn btn-outline-success">Upload Recipe</a>
+                    {% endif %}
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    recipeList.innerHTML = '';
+    
+    recipes.forEach(recipe => {
+        const recipeCard = document.createElement('div');
+        recipeCard.className = 'card mb-2 recipe-card-modal';
+        
+        // Determine badge color based on source
+        const badgeClass = recipe.source === 'spoonacular' ? 'bg-info' : 'bg-secondary';
+        const badgeText = recipe.source === 'spoonacular' ? 'Online' : 'Community';
+        
+        recipeCard.innerHTML = `
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge ${badgeClass}">
+                        <i class="fas fa-${recipe.source === 'spoonacular' ? 'globe' : 'users'} me-1"></i>${badgeText}
+                    </span>
+                    ${recipe.difficulty ? `<span class="badge ${getDifficultyBadgeClass(recipe.difficulty)}">${recipe.difficulty}</span>` : ''}
+                </div>
+                
+                <h6 class="card-title">${recipe.name}</h6>
+                
+                <p class="card-text mb-1">
+                    <small class="text-muted">
+                        <strong>Ingredients:</strong> ${recipe.ingredients ? recipe.ingredients.slice(0, 3).join(', ') + '...' : 'Check recipe for details'}
+                    </small>
+                </p>
+                
+                ${recipe.cooking_time ? `<p class="card-text mb-1"><small class="text-muted">⏱️ ${recipe.cooking_time} minutes</small></p>` : ''}
+                
+                <button class="btn btn-sm btn-success select-recipe" 
+                        data-recipe-id="${recipe.id}" 
+                        data-recipe-name="${recipe.name}"
+                        data-recipe-source="${recipe.source}">
+                    Select Recipe
+                </button>
+            </div>
+        `;
+        recipeList.appendChild(recipeCard);
+    });
+    
+    // Add event listeners to select buttons
+    document.querySelectorAll('.select-recipe').forEach(button => {
+        button.addEventListener('click', function() {
+            selectedRecipeId = this.getAttribute('data-recipe-id');
+            selectedRecipeName = this.getAttribute('data-recipe-name');
+            selectedRecipeSource = this.getAttribute('data-recipe-source');
+            
+            // Close recipe modal and open time modal
+            bootstrap.Modal.getInstance(document.getElementById('recipeModal')).hide();
+            
+            document.getElementById('selected-recipe-name').textContent = selectedRecipeName;
+            // Store the source in a hidden field or data attribute
+            document.getElementById('selected-recipe-source').value = selectedRecipeSource;
+            new bootstrap.Modal(document.getElementById('timeModal')).show();
+        });
+    });
+}
+
+// Helper function for difficulty badges
+function getDifficultyBadgeClass(difficulty) {
+    const classes = {
+        'Easy': 'bg-success',
+        'Medium': 'bg-warning',
+        'Hard': 'bg-danger'
+    };
+    return classes[difficulty] || 'bg-secondary';
+}
+
+
+// Updated addToCalendar function
+function addToCalendar(recipeId, day, timeSlot) {
+    const recipeSource = document.getElementById('selected-recipe-source').value || 'uploaded';
+    
+    const payload = {
+        recipe_id: recipeId,
+        day: day,
+        time: timeSlot,
+        source: recipeSource
+    };
+    
+    fetch('/add_to_calendar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Add to calendar view
+            const dayElement = document.getElementById(`slots-${day}`);
+            const mealSlot = document.createElement('div');
+            mealSlot.className = 'meal-slot';
+            mealSlot.innerHTML = `
+                <strong>${timeSlot}</strong><br>
+                <small>${selectedRecipeName}</small>
+                <span class="badge ${recipeSource === 'spoonacular' ? 'bg-info' : 'bg-secondary'} ms-1">
+                    ${recipeSource === 'spoonacular' ? 'Online' : 'Community'}
+                </span>
+                <button class="btn btn-sm btn-outline-danger remove-event" 
+                        data-event-id="${data.event_id}" 
+                        title="Remove">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            dayElement.appendChild(mealSlot);
+            
+            // Add event listener to new remove button
+            mealSlot.querySelector('.remove-event').addEventListener('click', function() {
+                const eventId = this.getAttribute('data-event-id');
+                removeFromCalendar(eventId);
+            });
+            
+            // Hide "no recipes" message if it exists
+            const noRecipesMessage = document.querySelector('.text-center.py-4');
+            if (noRecipesMessage) {
+                noRecipesMessage.style.display = 'none';
+            }
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('timeModal')).hide();
+            
+            // Show success message
+            showAlert('Recipe added to calendar successfully!', 'success');
+        } else {
+            showAlert(data.error || 'Failed to add recipe to calendar', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Failed to add recipe to calendar', 'danger');
+    });
+}
+
+
+
+function removeFromCalendar(eventId, eventSource) {
+    if (!confirm('Are you sure you want to remove this recipe from your calendar?')) {
+        return;
+    }
+    
+    const endpoint = eventSource === 'spoonacular' ? '/remove_spoonacular_from_calendar' : '/remove_from_calendar';
+    
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            event_id: eventId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove from DOM
+            const eventElement = document.querySelector(`.remove-event[data-event-id="${eventId}"]`).closest('.meal-slot');
+            eventElement.style.opacity = '0';
+            eventElement.style.transition = 'opacity 0.3s ease';
+            
+            setTimeout(() => {
+                eventElement.remove();
+                showAlert('Recipe removed from calendar successfully!', 'info');
+            }, 300);
+        } else {
+            showAlert(data.error || 'Failed to remove recipe from calendar', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Failed to remove recipe from calendar', 'danger');
+    });
+}
+
+function showAlert(message, type) {
+    // Remove any existing alerts
+    const existingAlert = document.querySelector('.alert.alert-dismissible');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
+    
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alert.innerHTML = `
+        <i class="fas fa-${getAlertIcon(type)} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.querySelector('.card-body').insertBefore(alert, document.querySelector('.text-center'));
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+function getAlertIcon(type) {
+    const icons = {
+        'success': 'check-circle',
+        'info': 'info-circle',
+        'warning': 'exclamation-triangle',
+        'danger': 'exclamation-circle'
+    };
+    return icons[type] || 'info-circle';
+}
+
+</script>
+{% endblock %}

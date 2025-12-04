@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}My Bookmarks - Recipe Finder{% endblock %}
+
+{% block content %}
+<h1 class="page-header text-center">
+    <i class="fas fa-bookmark me-2"></i>My Bookmarked Recipes
+</h1>
+
+{% if error %}
+<div class="alert alert-danger text-center">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if not recipes %}
+<div class="text-center mt-5 py-5">
+    <i class="fas fa-bookmark fa-3x text-muted mb-3"></i>
+    <h3>No bookmarked recipes yet</h3>
+    <p class="text-muted">Start browsing recipes and bookmark your favorites!</p>
+    <div class="mt-3">
+        <a href="/" class="btn btn-success me-2">Search Worldwide Recipes</a>
+        <a href="/recipes" class="btn btn-outline-success">Browse Community Recipes</a>
+    </div>
+</div>
+{% else %}
+<div class="row">
+    {% for recipe in recipes %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    {% if recipe.source == 'spoonacular' %}
+                    <span class="badge bg-info">
+                        <i class="fas fa-globe me-1"></i>Worldwide
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-users me-1"></i>Community
+                    </span>
+                    {% endif %}
+                    
+                    {% if recipe.difficulty %}
+                    <span class="badge 
+                        {% if recipe.difficulty == 'Easy' %}bg-success
+                        {% elif recipe.difficulty == 'Medium' %}bg-warning
+                        {% else %}bg-danger{% endif %}">
+                        {{ recipe.difficulty }}
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <h5 class="card-title">{{ recipe.name }}</h5>
+                
+                {% if recipe.cooking_time %}
+                <p class="card-text">
+                    <small class="text-muted">⏱️ {{ recipe.cooking_time }} minutes</small>
+                </p>
+                {% endif %}
+                
+                {% if recipe.user_email and recipe.source != 'spoonacular' %}
+                <p class="card-text">
+                    <small class="text-muted">By: {{ recipe.user_email }}</small>
+                </p>
+                {% endif %}
+                
+                <h6>Ingredients:</h6>
+                <div class="ingredient-list mb-3" style="max-height: 120px; overflow-y: auto;">
+                    <ul class="list-unstyled">
+                        {% for ingredient in recipe.ingredients %}
+                            <li>• {{ ingredient }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                {% if recipe.instructions and recipe.source != 'spoonacular' %}
+                <p class="card-text">
+                    <strong>Instructions:</strong><br>
+                    {{ recipe.instructions[:100] }}{% if recipe.instructions|length > 100 %}...{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+                {% if recipe.source == 'spoonacular' %}
+                <a href="https://spoonacular.com/recipes/{{ recipe.name|replace(' ', '-') }}-{{ recipe.id }}" 
+                   target="_blank" 
+                   class="btn btn-outline-success btn-sm">
+                    View Details
+                </a>
+                <a href="/shopping_list_spoonacular/{{ recipe.id }}" 
+                   class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-shopping-cart"></i>
+                </a>
+                <button class="btn btn-outline-danger btn-sm bookmark-spoonacular-btn" 
+                        data-recipe-id="{{ recipe.id }}">
+                    <i class="fas fa-bookmark"></i>
+                </button>
+                {% else %}
+                <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-success btn-sm">View Details</a>
+                <a href="/shopping_list/{{ recipe.id }}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-shopping-cart"></i>
+                </a>
+                <button class="btn btn-outline-danger btn-sm bookmark-btn" data-recipe-id="{{ recipe.id }}">
+                    <i class="fas fa-bookmark"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Bookmark toggle functionality for uploaded recipes
+    document.querySelectorAll('.bookmark-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const recipeId = this.getAttribute('data-recipe-id');
+            toggleBookmark(recipeId, this);
+        });
+    });
+    
+    // Bookmark toggle functionality for Spoonacular recipes
+    document.querySelectorAll('.bookmark-spoonacular-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const recipeId = this.getAttribute('data-recipe-id');
+            toggleBookmarkSpoonacular(recipeId, this);
+        });
+    });
+    
+    function toggleBookmark(recipeId, button) {
+        fetch(`/bookmark_recipe/${recipeId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.bookmarked) {
+                    // This should not happen on bookmarks page since we're removing
+                    button.classList.add('bookmarked');
+                    button.innerHTML = '<i class="fas fa-bookmark"></i>';
+                    showAlert('Recipe bookmarked!', 'success');
+                } else {
+                    // Remove bookmark - this is what should happen
+                    button.classList.remove('bookmarked');
+                    button.innerHTML = '<i class="far fa-bookmark"></i>';
+                    
+                    // Remove the card from view with animation
+                    const card = button.closest('.col-md-6');
+                    card.style.opacity = '0';
+                    card.style.transition = 'opacity 0.3s ease';
+                    
+                    setTimeout(() => {
+                        card.remove();
+                        
+                        // Show message if no bookmarks left
+                        if (document.querySelectorAll('.bookmark-btn, .bookmark-spoonacular-btn').length === 0) {
+                            setTimeout(() => location.reload(), 1000);
+                        }
+                        
+                        showAlert('Bookmark removed successfully!', 'info');
+                    }, 300);
+                }
+            } else {
+                showAlert(data.error || 'Failed to update bookmark', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Failed to update bookmark', 'danger');
+        });
+    }
+    
+    function toggleBookmarkSpoonacular(recipeId, button) {
+        const recipeTitle = button.closest('.card').querySelector('.card-title').textContent;
+        
+        fetch('/bookmark_spoonacular_recipe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                recipe_id: recipeId,
+                recipe_title: recipeTitle
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.bookmarked) {
+                    // This should not happen on bookmarks page
+                    button.classList.add('bookmarked');
+                    button.innerHTML = '<i class="fas fa-bookmark"></i>';
+                    showAlert('Recipe bookmarked!', 'success');
+                } else {
+                    // Remove bookmark
+                    button.classList.remove('bookmarked');
+                    button.innerHTML = '<i class="far fa-bookmark"></i>';
+                    
+                    // Remove the card from view with animation
+                    const card = button.closest('.col-md-6');
+                    card.style.opacity = '0';
+                    card.style.transition = 'opacity 0.3s ease';
+                    
+                    setTimeout(() => {
+                        card.remove();
+                        
+                        // Show message if no bookmarks left
+                        if (document.querySelectorAll('.bookmark-btn, .bookmark-spoonacular-btn').length === 0) {
+                            setTimeout(() => location.reload(), 1000);
+                        }
+                        
+                        showAlert('Bookmark removed successfully!', 'info');
+                    }, 300);
+                }
+            } else {
+                showAlert(data.error || 'Failed to update bookmark', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Failed to update bookmark', 'danger');
+        });
+    }
+
+    function showAlert(message, type) {
+        // Remove any existing alerts
+        const existingAlert = document.querySelector('.alert.alert-dismissible');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+        alert.innerHTML = `
+            <i class="fas fa-${getAlertIcon(type)} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container').insertBefore(alert, document.querySelector('.page-header').nextSibling);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+
+    function getAlertIcon(type) {
+        const icons = {
+            'success': 'check-circle',
+            'info': 'info-circle',
+            'warning': 'exclamation-triangle',
+            'danger': 'exclamation-circle'
+        };
+        return icons[type] || 'info-circle';
+    }
+});
+</script>
+{% endblock %}
